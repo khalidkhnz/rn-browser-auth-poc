@@ -1,0 +1,49 @@
+name: Unsigned iOS IPA
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-26
+    timeout-minutes: 45
+    env:
+      EXPO_PUBLIC_AUTH_URL: https://rn-browser-auth-poc.vercel.app
+      EXPO_PUBLIC_LIVECONTAINER: '1'
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - run: npm ci
+
+      - run: npx expo prebuild --platform ios
+
+      - name: Build without code signing
+        run: |
+          xcodebuild \
+            -workspace ios/BrowserAuthPOC.xcworkspace \
+            -scheme BrowserAuthPOC \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination generic/platform=iOS \
+            -derivedDataPath build \
+            -quiet \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Package IPA
+        run: |
+          mkdir Payload
+          cp -R build/Build/Products/Release-iphoneos/BrowserAuthPOC.app Payload/
+          zip -qry BrowserAuthPOC-unsigned.ipa Payload
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: BrowserAuthPOC-unsigned-ipa
+          path: mobile/BrowserAuthPOC-unsigned.ipa
+          if-no-files-found: error
